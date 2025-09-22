@@ -3,17 +3,6 @@
 import React, { useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, Trash2, Calculator, BarChart3, Share2 } from "lucide-react";
 
-// Analytics helper function
-interface GoogleAnalyticsWindow extends Window {
-  gtag?: (command: string, eventName: string, parameters?: Record<string, unknown>) => void;
-}
-
-const trackEvent = (eventName: string, parameters?: Record<string, unknown>) => {
-  if (typeof window !== "undefined" && (window as GoogleAnalyticsWindow).gtag) {
-    (window as GoogleAnalyticsWindow).gtag!("event", eventName, parameters);
-  }
-};
-
 // Types
 interface Material {
   id: string;
@@ -227,19 +216,10 @@ const VariableCostForm: React.FC<{
       totalCost: 0,
     };
     setMaterials([...materials, newMaterial]);
-
-    trackEvent("material_added", {
-      material_count: materials.length + 1,
-      default_unit: "kg",
-    });
   };
 
   const removeMaterial = (id: string) => {
     setMaterials(materials.filter((m) => m.id !== id));
-
-    trackEvent("material_removed", {
-      material_count: materials.length - 1,
-    });
   };
 
   const updateMaterial = (id: string, field: keyof Material, value: string | number) => {
@@ -359,20 +339,7 @@ const VariableCostForm: React.FC<{
         </div>
       </div>
 
-      <Button
-        onClick={() => {
-          onNext();
-          trackEvent("calculator_step_completed", {
-            step: 1,
-            step_name: "variable_cost",
-            materials_count: materials.length,
-            total_variable_cost: totalVariableCost,
-          });
-        }}
-        disabled={!canProceed}
-        className="w-full"
-        size="lg"
-      >
+      <Button onClick={onNext} disabled={!canProceed} className="w-full" size="lg">
         Lanjut ke Biaya Tetap
         <ChevronRight className="w-5 h-5 ml-2" />
       </Button>
@@ -422,22 +389,7 @@ const FixedCostForm: React.FC<{
           Kembali
         </Button>
 
-        <Button
-          onClick={() => {
-            onNext();
-            trackEvent("calculator_step_completed", {
-              step: 2,
-              step_name: "fixed_cost",
-              monthly_rent: fixedCost.rent,
-              monthly_utilities: fixedCost.utilities,
-              monthly_production: fixedCost.monthlyProduction,
-              fixed_cost_per_portion: fixedCost.fixedCostPerPortion,
-            });
-          }}
-          disabled={!canProceed}
-          className="flex-1"
-          size="lg"
-        >
+        <Button onClick={onNext} disabled={!canProceed} className="flex-1" size="lg">
           Lanjut ke Biaya Tenaga Kerja
           <ChevronRight className="w-5 h-5 ml-2" />
         </Button>
@@ -475,16 +427,7 @@ const LaborCostForm: React.FC<{
             <p className="text-sm text-gray-600 mb-2">Upah umum:</p>
             <div className="flex flex-wrap gap-2">
               {presetWages.map((wage) => (
-                <button
-                  key={wage}
-                  onClick={() => {
-                    updateLaborCost("dailyWage", wage);
-                    trackEvent("preset_wage_selected", {
-                      wage_amount: wage,
-                    });
-                  }}
-                  className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded-full transition-colors"
-                >
+                <button key={wage} onClick={() => updateLaborCost("dailyWage", wage)} className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded-full transition-colors">
                   {formatCurrency(wage)}
                 </button>
               ))}
@@ -508,21 +451,7 @@ const LaborCostForm: React.FC<{
           Kembali
         </Button>
 
-        <Button
-          onClick={() => {
-            onNext();
-            trackEvent("calculator_step_completed", {
-              step: 3,
-              step_name: "labor_cost",
-              employee_count: laborCost.employeeCount,
-              daily_wage: laborCost.dailyWage,
-              working_days: laborCost.workingDaysPerMonth,
-              labor_cost_per_portion: laborCost.laborCostPerPortion,
-            });
-          }}
-          className="flex-1"
-          size="lg"
-        >
+        <Button onClick={onNext} className="flex-1" size="lg">
           Lihat Hasil HPP
           <ChevronRight className="w-5 h-5 ml-2" />
         </Button>
@@ -542,48 +471,23 @@ const HPPResult: React.FC<{
   const variableCostPerPortion = calculateVariableCost(materials);
   const totalHPP = calculateHPP(variableCostPerPortion, fixedCost.fixedCostPerPortion, laborCost.laborCostPerPortion);
 
-  const breakdown = React.useMemo(
-    () => ({
-      variableCostPercentage: (variableCostPerPortion / totalHPP) * 100,
-      fixedCostPercentage: (fixedCost.fixedCostPerPortion / totalHPP) * 100,
-      laborCostPercentage: (laborCost.laborCostPerPortion / totalHPP) * 100,
-    }),
-    [variableCostPerPortion, totalHPP, fixedCost.fixedCostPerPortion, laborCost.laborCostPerPortion]
-  );
+  const breakdown = {
+    variableCostPercentage: (variableCostPerPortion / totalHPP) * 100,
+    fixedCostPercentage: (fixedCost.fixedCostPerPortion / totalHPP) * 100,
+    laborCostPercentage: (laborCost.laborCostPerPortion / totalHPP) * 100,
+  };
 
   const suggestedMargins = [20, 30, 40, 50];
 
-  // Track HPP calculation completion
-  React.useEffect(() => {
-    trackEvent("hpp_calculation_completed", {
-      total_hpp: totalHPP,
-      variable_cost: variableCostPerPortion,
-      fixed_cost: fixedCost.fixedCostPerPortion,
-      labor_cost: laborCost.laborCostPerPortion,
-      variable_cost_percentage: breakdown.variableCostPercentage,
-      fixed_cost_percentage: breakdown.fixedCostPercentage,
-      labor_cost_percentage: breakdown.laborCostPercentage,
-      materials_count: materials.length,
-    });
-  }, [totalHPP, variableCostPerPortion, fixedCost.fixedCostPerPortion, laborCost.laborCostPerPortion, breakdown, materials.length]);
-
   const shareToWhatsApp = () => {
-    trackEvent("hpp_result_shared", {
-      platform: "whatsapp",
-      hpp_amount: totalHPP,
-      variable_cost: variableCostPerPortion,
-      fixed_cost: fixedCost.fixedCostPerPortion,
-      labor_cost: laborCost.laborCostPerPortion,
-    });
-
     const message =
       `*HASIL PERHITUNGAN HPP*\n\n` +
-      `HPP per Porsi: ${formatCurrency(totalHPP)}\n\n` +
-      `Rincian Biaya:\n` +
+      `💰 *HPP per Porsi: ${formatCurrency(totalHPP)}*\n\n` +
+      `📊 *Rincian Biaya:*\n` +
       `• Biaya Variabel: ${formatCurrency(variableCostPerPortion)} (${breakdown.variableCostPercentage.toFixed(1)}%)\n` +
       `• Biaya Tetap: ${formatCurrency(fixedCost.fixedCostPerPortion)} (${breakdown.fixedCostPercentage.toFixed(1)}%)\n` +
       `• Biaya Tenaga Kerja: ${formatCurrency(laborCost.laborCostPerPortion)} (${breakdown.laborCostPercentage.toFixed(1)}%)\n\n` +
-      `Saran Harga Jual:\n` +
+      `🎯 *Saran Harga Jual:*\n` +
       `• Margin 20%: ${formatCurrency(totalHPP * 1.2)}\n` +
       `• Margin 30%: ${formatCurrency(totalHPP * 1.3)}\n\n` +
       `Dihitung dengan Kalkulator HPP UMKM`;
@@ -622,7 +526,7 @@ const HPPResult: React.FC<{
       </div>
 
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-        <h4 className="font-medium text-yellow-900 mb-3">Saran Harga Jual per Porsi</h4>
+        <h4 className="font-medium text-yellow-900 mb-3">💡 Saran Harga Jual per Porsi</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {suggestedMargins.map((margin) => {
             const sellingPrice = totalHPP * (1 + margin / 100);
@@ -647,17 +551,7 @@ const HPPResult: React.FC<{
           Kembali
         </Button>
 
-        <Button
-          onClick={() => {
-            onAnalyzeRevenue();
-            trackEvent("revenue_analysis_started", {
-              source: "hpp_result",
-              hpp_amount: totalHPP,
-            });
-          }}
-          className="flex-1 bg-purple-600 hover:bg-purple-700"
-          size="lg"
-        >
+        <Button onClick={onAnalyzeRevenue} className="flex-1 bg-purple-600 hover:bg-purple-700" size="lg">
           <BarChart3 className="w-5 h-5 mr-2" />
           Analisis Pendapatan
         </Button>
@@ -667,17 +561,7 @@ const HPPResult: React.FC<{
           Bagikan ke WhatsApp
         </Button>
 
-        <Button
-          onClick={() => {
-            onRestart();
-            trackEvent("calculator_restarted", {
-              from_step: 4,
-              previous_hpp: totalHPP,
-            });
-          }}
-          className="flex-1"
-          size="lg"
-        >
+        <Button onClick={onRestart} className="flex-1" size="lg">
           <Calculator className="w-5 h-5 mr-2" />
           Hitung Lagi
         </Button>
@@ -712,20 +596,6 @@ const RevenueBreakdown: React.FC<{
 
   const profitStatus = getProfitStatus();
 
-  // Track revenue analysis completion
-  React.useEffect(() => {
-    if (totalRevenue > 0 && portionsSold > 0) {
-      trackEvent("revenue_analysis_completed", {
-        total_revenue: totalRevenue,
-        portions_sold: portionsSold,
-        revenue_per_portion: revenuePerPortion,
-        total_profit: totalProfit,
-        profit_margin_percentage: profitMarginPercentage,
-        profit_status: profitStatus.status,
-      });
-    }
-  }, [totalRevenue, portionsSold, revenuePerPortion, totalProfit, profitMarginPercentage, profitStatus.status]);
-
   return (
     <Card>
       <h2 className="text-xl font-semibold text-gray-900 mb-6">Analisis Pendapatan Harian</h2>
@@ -749,7 +619,7 @@ const RevenueBreakdown: React.FC<{
             <>
               {/* Breakdown Biaya Detail */}
               <div className="bg-white border rounded-lg p-4 mb-6">
-                <h3 className="font-semibold text-gray-900 mb-4">Breakdown Biaya Detail</h3>
+                <h3 className="font-semibold text-gray-900 mb-4">💰 Breakdown Biaya Detail</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="font-medium">Pendapatan Total</span>
@@ -787,7 +657,7 @@ const RevenueBreakdown: React.FC<{
 
               {/* Analisis Keuntungan */}
               <div className={`${profitStatus.bgColor} border ${profitStatus.borderColor} rounded-lg p-4 mb-6`}>
-                <h3 className="font-semibold text-gray-900 mb-4">Analisis Margin Keuntungan</h3>
+                <h3 className="font-semibold text-gray-900 mb-4">📊 Analisis Margin Keuntungan</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="text-center">
                     <div className={`${profitStatus.textColor} font-medium text-sm mb-1`}>Margin Keuntungan</div>
@@ -808,7 +678,7 @@ const RevenueBreakdown: React.FC<{
                 {profitMarginPercentage < 20 && (
                   <div className="mt-4 p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
                     <p className="text-yellow-800 text-sm">
-                      <strong>Saran:</strong> Margin keuntungan di bawah 20%. Pertimbangkan untuk {profitMarginPercentage < 10 ? "menaikkan harga jual atau mengurangi biaya produksi" : "mengoptimalkan efisiensi operasional"}.
+                      💡 <strong>Saran:</strong> Margin keuntungan di bawah 20%. Pertimbangkan untuk {profitMarginPercentage < 10 ? "menaikkan harga jual atau mengurangi biaya produksi" : "mengoptimalkan efisiensi operasional"}.
                     </p>
                   </div>
                 )}
@@ -816,7 +686,7 @@ const RevenueBreakdown: React.FC<{
                 {profitMarginPercentage >= 30 && (
                   <div className="mt-4 p-3 bg-green-100 border border-green-300 rounded-lg">
                     <p className="text-green-800 text-sm">
-                      <strong>Excellent!</strong> Margin keuntungan sangat baik. Bisnis Anda berjalan dengan efisien.
+                      🎉 <strong>Excellent!</strong> Margin keuntungan sangat baik. Bisnis Anda berjalan dengan efisien.
                     </p>
                   </div>
                 )}
@@ -838,11 +708,6 @@ const SupportCard: React.FC = () => {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     alert("Nomor rekening berhasil disalin!");
-
-    trackEvent("support_donation_clicked", {
-      action: "copy_account_number",
-      bank: "seabank",
-    });
   };
 
   return (
@@ -869,30 +734,10 @@ const SupportCard: React.FC = () => {
           <div className="bg-white rounded-lg p-4 border border-purple-200">
             <h4 className="font-medium text-purple-900 mb-3">Feedback & Saran</h4>
             <p className="text-sm text-gray-600 mb-3">Punya saran atau menemukan bug? Beritahu kami untuk perbaikan aplikasi</p>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                window.open("mailto:irsyadfata99@gmail.com", "_blank");
-                trackEvent("support_feedback_clicked", {
-                  method: "email",
-                });
-              }}
-              className="w-full mb-2"
-            >
+            <Button variant="secondary" size="sm" onClick={() => window.open("mailto:irsyadfata99@gmail.com", "_blank")} className="w-full mb-2">
               Kirim Feedback via Email
             </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                window.open("https://forms.gle/QTHUTZ1Fbttauoqc7", "_blank");
-                trackEvent("support_feedback_clicked", {
-                  method: "google_form",
-                });
-              }}
-              className="w-full"
-            >
+            <Button variant="secondary" size="sm" onClick={() => window.open("https://forms.gle/QTHUTZ1Fbttauoqc7", "_blank")} className="w-full">
               Isi Form Feedback
             </Button>
           </div>
@@ -988,37 +833,23 @@ export default function HPPCalculatorApp() {
               <p className="text-gray-600 mb-6">Hitung HPP produk Anda atau analisis pendapatan harian dengan mudah</p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div
-                  onClick={() => {
-                    setCurrentPage("hpp");
-                    trackEvent("calculator_started", {
-                      feature: "hpp_calculator",
-                      source: "home_page",
-                    });
-                  }}
-                  className="cursor-pointer p-6 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all"
-                >
+                <div onClick={() => setCurrentPage("hpp")} className="cursor-pointer p-6 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all">
                   <Calculator className="w-12 h-12 text-blue-600 mx-auto mb-3" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Kalkulator HPP</h3>
                   <p className="text-gray-600 text-sm">Hitung harga pokok produksi dengan rincian biaya variabel, tetap, dan tenaga kerja</p>
                 </div>
 
-                <div
-                  onClick={() => {
-                    setCurrentPage("revenue");
-                    trackEvent("revenue_analysis_started", {
-                      feature: "revenue_analysis",
-                      source: "home_page",
-                    });
-                  }}
-                  className="cursor-pointer p-6 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all"
-                >
+                <div onClick={() => setCurrentPage("revenue")} className="cursor-pointer p-6 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all">
                   <BarChart3 className="w-12 h-12 text-green-600 mx-auto mb-3" />
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Analisis Pendapatan</h3>
                   <p className="text-gray-600 text-sm">Analisis keuntungan dan breakdown biaya dari pendapatan harian Anda</p>
                 </div>
               </div>
             </Card>
+
+            <div className="text-sm text-gray-500">
+              <p>Gratis • Data Aman • Mobile Friendly</p>
+            </div>
           </div>
         )}
 
@@ -1042,10 +873,6 @@ export default function HPPCalculatorApp() {
       {/* Support Card */}
       <div className="max-w-4xl mx-auto px-4 mb-8">
         <SupportCard />
-
-        <div className="text-center mt-4 text-sm text-gray-500">
-          <p>Aplikasi ini gratis dan tidak menyimpan data. Data akan hilang ketika website ditutup atau direfresh</p>
-        </div>
       </div>
 
       {/* Footer */}
